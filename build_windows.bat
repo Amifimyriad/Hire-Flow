@@ -11,4 +11,5 @@ if not exist "%PYTHON_BIN%" (
 )
 
 "%PYTHON_BIN%" -m pip install -r requirements.txt || exit /b 1
-"%PYTHON_BIN%" -m PyInstaller --noconfirm --windowed --name HireFlow --add-data "templates;templates" --add-data "assets;assets" --add-data "samples;samples" --collect-data certifi --collect-submodules keyring main.py
+"%PYTHON_BIN%" -m pip install pyinstaller pillow || exit /b 1
+"%PYTHON_BIN%" -m PyInstaller --clean --noconfirm HireFlow.spec || exit /b 1

@@ -1,4 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
+import platform
+
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_submodules
 
@@ -7,6 +9,7 @@ hiddenimports = []
 datas += collect_data_files('certifi')
 hiddenimports += collect_submodules('keyring')
 
+app_icon = 'assets/hireflow_icon.ico' if platform.system() == 'Windows' else 'assets/hireflow_icon.icns'
 
 a = Analysis(
     ['main.py'],
@@ -39,7 +42,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/hireflow_icon.icns'],
+    icon=app_icon,
 )
 coll = COLLECT(
     exe,
@@ -53,6 +56,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='HireFlow.app',
-    icon='assets/hireflow_icon.icns',
+    icon=app_icon,
     bundle_identifier='com.hireflow.app',
 )

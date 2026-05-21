@@ -13,15 +13,4 @@ fi
 
 "$PYTHON_BIN" -m pip install -r requirements.txt
 
-"$PYTHON_BIN" -m PyInstaller \
-  --noconfirm \
-  --windowed \
-  --name HireFlow \
-  --osx-bundle-identifier com.hireflow.app \
-  --icon assets/hireflow_icon.icns \
-  --add-data "templates:templates" \
-  --add-data "assets:assets" \
-  --add-data "samples:samples" \
-  --collect-data certifi \
-  --collect-submodules keyring \
-  main.py
+"$PYTHON_BIN" -m PyInstaller --clean --noconfirm HireFlow.spec

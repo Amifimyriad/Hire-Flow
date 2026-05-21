@@ -18,11 +18,19 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
+
+      - name: Validate Windows Icon
+        run: |
+          if (!(Test-Path "assets/hireflow_icon.ico")) { throw "Missing assets/hireflow_icon.ico" }
+          if (!(Test-Path "assets/hireflow_icon.icns")) { throw "Missing assets/hireflow_icon.icns" }
+          python -c "from PIL import Image; img = Image.open('assets/hireflow_icon.ico'); print('Windows icon frames:', getattr(img, 'n_frames', 1))"
 
       - name: Build EXE
         run: |
+          python -c "import platform; print('Build platform:', platform.system())"
           pyinstaller --clean --noconfirm HireFlow.spec
 
       - name: Upload Artifact
