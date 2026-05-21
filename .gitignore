@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+
+# Build
+build/
+dist/
+release/
+out/
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Cache
+.cache/

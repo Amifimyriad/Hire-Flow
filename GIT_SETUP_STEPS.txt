@@ -1,0 +1,16 @@
+1. Copy `.env.example` to `.env`.
+2. Fill SMTP/IMAP vars with your own mailbox + app passwords.
+3. Create venv: `python -m venv .venv`
+4. Install: `./.venv/bin/pip install -r requirements.txt`
+5. Run: `./.venv/bin/python main.py`
+6. Init git: `git init`
+7. Add safe files: `git add .`
+8. Commit: `git commit -m "Initial HireFlow"`
+9. Add remote: `git remote add origin <repo-url>`
+10. Push: `git push -u origin main`
+11. Branch flow: `git checkout -b feature/<name>`
+12. Update flow: `git pull --rebase`, edit, `git add .`, `git commit -m "<msg>"`, `git push`
+13. Build macOS app: `./build_macos.sh`
+14. Build macOS dmg: `./build_dmg.sh`
+15. Build Windows app: `build_windows.bat`
+16. Build Windows installer: run Inno Setup with `HireFlowInstaller.iss`

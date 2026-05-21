@@ -1,0 +1,405 @@
+from __future__ import annotations
+
+from urllib.parse import quote
+
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextBrowser,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.workers import SingleReplyWorker
+from services.template_service import render_template
+from ui.widgets.table_utils import configure_table, format_timestamp
+
+
+class InboxRepliesPage(QWidget):
+    def __init__(self, context):
+        super().__init__()
+        self.context = context
+        self.rows: list[dict] = []
+        self.filtered_rows: list[dict] = []
+        self.reply_worker = None
+        self.current_row: dict | None = None
+        self.search_input = QLineEdit()
+        self.filter_box = QComboBox()
+        self.table = QTableWidget()
+        self.thread_view = QTextBrowser()
+        self.notes_editor = QTextEdit()
+        self.reply_subject = QLineEdit()
+        self.reply_body = QTextEdit()
+        self.status_label = QLabel("Select a recruiter reply.")
+        self._build_ui()
+        self.context.bus.replies_updated.connect(self.refresh_data)
+        self.context.bus.logs_updated.connect(self.refresh_data)
+        self.refresh_data()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(18)
+
+        hero_card = QFrame()
+        hero_card.setObjectName("Card")
+        hero_layout = QVBoxLayout(hero_card)
+        eyebrow = QLabel("Inbox")
+        eyebrow.setObjectName("Eyebrow")
+        title = QLabel("Review recruiter conversations in a cleaner split-view inbox.")
+        title.setObjectName("SectionTitle")
+        body = QLabel("Search threads, update status, add notes, and reply without leaving HireFlow.")
+        body.setObjectName("HeroBody")
+        hero_layout.addWidget(eyebrow)
+        hero_layout.addWidget(title)
+        hero_layout.addWidget(body)
+        layout.addWidget(hero_card)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        thread_card = QFrame()
+        thread_card.setObjectName("Card")
+        thread_layout = QVBoxLayout(thread_card)
+        toolbar = QHBoxLayout()
+        self.search_input.setPlaceholderText("Search recruiter, company, email, subject...")
+        self.search_input.textChanged.connect(self.apply_filters)
+        self.filter_box.addItems(["all", "new", "replied", "completed", "interested", "not_interested"])
+        self.filter_box.currentTextChanged.connect(self.apply_filters)
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.refresh_data)
+        toolbar.addWidget(self.search_input, 1)
+        toolbar.addWidget(self.filter_box)
+        toolbar.addWidget(refresh_button)
+        thread_layout.addLayout(toolbar)
+        configure_table(
+            self.table,
+            ["Recruiter", "Company", "Subject", "Received", "Status"],
+        )
+        self.table.itemSelectionChanged.connect(self.on_selection_changed)
+        thread_layout.addWidget(self.table)
+
+        detail_card = QFrame()
+        detail_card.setObjectName("Card")
+        detail_layout = QVBoxLayout(detail_card)
+        detail_header = QHBoxLayout()
+        header_copy = QVBoxLayout()
+        header_copy.setSpacing(4)
+        thread_title = QLabel("Conversation")
+        thread_title.setObjectName("SectionTitle")
+        self.status_label.setObjectName("Muted")
+        header_copy.addWidget(thread_title)
+        header_copy.addWidget(self.status_label)
+        detail_actions = QHBoxLayout()
+        manual_button = QPushButton("Reply Manually")
+        manual_button.clicked.connect(self.prepare_manual_reply)
+        auto_button = QPushButton("AI/Auto Reply")
+        auto_button.clicked.connect(self.auto_reply)
+        gmail_button = QPushButton("Open Gmail Thread")
+        gmail_button.clicked.connect(self.open_gmail_thread)
+        send_button = QPushButton("Send Reply")
+        send_button.setObjectName("PrimaryButton")
+        send_button.clicked.connect(self.send_reply)
+        self.send_button = send_button
+        self.manual_button = manual_button
+        self.auto_button = auto_button
+        self.gmail_button = gmail_button
+        for widget in [manual_button, auto_button, gmail_button, send_button]:
+            detail_actions.addWidget(widget)
+        detail_header.addLayout(header_copy, 1)
+        detail_header.addLayout(detail_actions)
+        detail_layout.addLayout(detail_header)
+
+        quick_actions = QHBoxLayout()
+        completed_button = QPushButton("Mark Completed")
+        completed_button.clicked.connect(lambda: self.update_state(status="completed"))
+        interested_button = QPushButton("Interested")
+        interested_button.clicked.connect(lambda: self.update_state(interest_status="interested"))
+        not_interested_button = QPushButton("Not Interested")
+        not_interested_button.clicked.connect(lambda: self.update_state(interest_status="not_interested"))
+        archive_button = QPushButton("Archive")
+        archive_button.clicked.connect(lambda: self.update_state(archived=1))
+        save_notes_button = QPushButton("Save Notes")
+        save_notes_button.clicked.connect(self.save_notes)
+        self.completed_button = completed_button
+        self.interested_button = interested_button
+        self.not_interested_button = not_interested_button
+        self.archive_button = archive_button
+        self.save_notes_button = save_notes_button
+        for widget in [completed_button, interested_button, not_interested_button, archive_button, save_notes_button]:
+            quick_actions.addWidget(widget)
+        quick_actions.addStretch(1)
+        detail_layout.addLayout(quick_actions)
+
+        detail_layout.addWidget(QLabel("Full Conversation Thread"))
+        self.thread_view.setOpenExternalLinks(True)
+        detail_layout.addWidget(self.thread_view, 1)
+        detail_layout.addWidget(QLabel("Notes / Comments"))
+        self.notes_editor.setMaximumHeight(90)
+        detail_layout.addWidget(self.notes_editor)
+        detail_layout.addWidget(QLabel("Reply Subject"))
+        detail_layout.addWidget(self.reply_subject)
+        detail_layout.addWidget(QLabel("Reply Body"))
+        self.reply_body.setMinimumHeight(160)
+        detail_layout.addWidget(self.reply_body, 1)
+
+        splitter.addWidget(thread_card)
+        splitter.addWidget(detail_card)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 3)
+        splitter.setSizes([520, 860])
+        layout.addWidget(splitter, 1)
+
+        QShortcut(QKeySequence("Ctrl+F"), self, activated=self.search_input.setFocus)
+        QShortcut(QKeySequence("Ctrl+Enter"), self, activated=self.send_reply)
+        QShortcut(QKeySequence("Ctrl+Shift+R"), self, activated=self.refresh_data)
+
+    def refresh_data(self) -> None:
+        self.rows = self.context.database.list_inbox_replies()
+        self.apply_filters()
+
+    def apply_filters(self) -> None:
+        query = self.search_input.text().strip().lower()
+        selected_filter = self.filter_box.currentText()
+        rows = []
+        for row in self.rows:
+            haystack = " ".join(
+                [
+                    row["name"],
+                    row["company"] or "",
+                    row["email"],
+                    row["latest_subject"] or "",
+                    row["latest_preview"] or "",
+                ]
+            ).lower()
+            if query and query not in haystack:
+                continue
+            if selected_filter == "new" and row["status"] != "new":
+                continue
+            if selected_filter == "replied" and row["status"] != "replied":
+                continue
+            if selected_filter == "completed" and row["status"] != "completed":
+                continue
+            if selected_filter == "interested" and row["interest_status"] != "interested":
+                continue
+            if selected_filter == "not_interested" and row["interest_status"] != "not_interested":
+                continue
+            rows.append(row)
+        self.filtered_rows = rows
+        self.table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            values = [
+                row["name"] + ("  NEW" if row["status"] == "new" else ""),
+                row["company"] or "-",
+                (row["latest_subject"] or "-")[:64],
+                format_timestamp(row["last_received_at"]),
+                f"{row['status']} / {row['interest_status']}",
+            ]
+            for column_index, value in enumerate(values):
+                self.table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
+        self.table.resizeColumnsToContents()
+        if rows:
+            self.select_row(0)
+        else:
+            self.current_row = None
+            self.thread_view.setHtml("<p>No replies match the current filter.</p>")
+            self.notes_editor.clear()
+            self.reply_subject.clear()
+            self.reply_body.clear()
+            self.status_label.setText("No inbox replies found.")
+
+    def select_row(self, row_index: int) -> None:
+        if row_index < 0 or row_index >= len(self.filtered_rows):
+            return
+        self.table.selectRow(row_index)
+        self.on_selection_changed()
+
+    def on_selection_changed(self) -> None:
+        indexes = self.table.selectionModel().selectedRows()
+        if not indexes or not self.filtered_rows:
+            return
+        self.current_row = self.filtered_rows[indexes[0].row()]
+        messages = self.context.database.get_conversation_messages(int(self.current_row["recruiter_id"]))
+        thread_html = []
+        for message in messages:
+            timestamp = message["received_at"] or message["sent_at"] or message["created_at"]
+            tone = "#6FA5FF" if message["direction"] == "outbound" else "#8EA0B8"
+            thread_html.append(
+                f"<div style='margin-bottom:12px; padding:12px; border-radius:14px; background:rgba(127,127,127,0.06);'>"
+                f"<div style='font-weight:700; color:{tone}; margin-bottom:4px;'>{message['direction'].title()}</div>"
+                f"<div style='font-size:12px; opacity:0.7; margin-bottom:6px;'>{format_timestamp(timestamp)}</div>"
+                f"<div style='font-weight:600; margin-bottom:6px;'>{message['subject'] or '(No Subject)'}</div>"
+                f"<div>{(message['body_html'] or message['body_text'] or '').replace(chr(10), '<br>')}</div>"
+                f"</div>"
+            )
+        self.thread_view.setHtml("".join(thread_html) or "<p>No thread history.</p>")
+        self.notes_editor.setPlainText(self.current_row.get("notes", ""))
+        self.reply_subject.setText(f"Re: {self.current_row['latest_subject']}".strip())
+        self.reply_body.setPlainText("")
+        self.status_label.setText(
+            f"{self.current_row['name']} • {self.current_row['email']} • {self.current_row['status']} • {self.current_row['interest_status']}"
+        )
+
+    def _selected_recruiter(self) -> dict | None:
+        if not self.current_row:
+            self.context.bus.notification_requested.emit("No Reply Selected", "Select an inbox reply first.", "error")
+            return None
+        return {
+            "id": int(self.current_row["recruiter_id"]),
+            "name": self.current_row["name"],
+            "company": self.current_row["company"],
+            "email": self.current_row["email"],
+        }
+
+    def _thread_headers(self) -> dict[str, str]:
+        recruiter = self._selected_recruiter()
+        if recruiter is None:
+            return {}
+        latest = self.context.database.get_latest_conversation_message(recruiter["id"]) or {}
+        latest_message_id = (latest.get("external_message_id") or self.current_row.get("latest_message_id") or "").strip()
+        references = " ".join(
+            part
+            for part in [(latest.get("references_header") or "").strip(), latest_message_id]
+            if part
+        ).strip()
+        return {"In-Reply-To": latest_message_id, "References": references}
+
+    def prepare_manual_reply(self) -> None:
+        recruiter = self._selected_recruiter()
+        if recruiter is None:
+            return
+        settings = self.context.database.get_settings()
+        self.reply_subject.setText(f"Re: {self.current_row['latest_subject']}".strip())
+        self.reply_body.setHtml(
+            render_template(
+                "<p>Hi {{recruiter_name}},</p><p>Thank you for your reply.</p><p></p>{{signature_html}}",
+                {
+                    "recruiter_name": recruiter["name"],
+                    "company": recruiter["company"],
+                    "signature_html": settings.get("signature_html", ""),
+                },
+            )
+        )
+
+    def auto_reply(self) -> None:
+        recruiter = self._selected_recruiter()
+        if recruiter is None:
+            return
+        settings = self.context.database.get_settings()
+        company = recruiter["company"] or "your team"
+        self.reply_subject.setText(f"Re: {self.current_row['latest_subject']}".strip())
+        self.reply_body.setHtml(
+            render_template(
+                (
+                    "<p>Hi {{recruiter_name}},</p>"
+                    "<p>Thank you for your reply. I'm interested in continuing the conversation about roles with {{company}}.</p>"
+                    "<p>Please share the next steps and any suitable time slots.</p>"
+                    "{{signature_html}}"
+                ),
+                {
+                    "recruiter_name": recruiter["name"],
+                    "company": company,
+                    "signature_html": settings.get("signature_html", ""),
+                },
+            )
+        )
+
+    def send_reply(self) -> None:
+        recruiter = self._selected_recruiter()
+        if recruiter is None or (self.reply_worker and self.reply_worker.isRunning()):
+            return
+        subject = self.reply_subject.text().strip()
+        body_html = self.reply_body.toHtml().strip()
+        if not subject or not body_html:
+            self.context.bus.notification_requested.emit("Missing Reply", "Reply subject and body are required.", "error")
+            return
+        mode = "auto_reply" if "Thank you for your reply" in self.reply_body.toPlainText() else "manual_reply"
+        self.reply_worker = SingleReplyWorker(
+            recruiter=recruiter,
+            subject=subject,
+            body_html=body_html,
+            mode=mode,
+            settings=self.context.database.get_settings(),
+            thread_headers=self._thread_headers(),
+            database=self.context.database,
+            email_service=self.context.email_service,
+        )
+        self._set_busy(True)
+        self.reply_worker.completed.connect(self._reply_completed)
+        self.reply_worker.failed.connect(self._reply_failed)
+        self.reply_worker.finished.connect(self.reply_worker.deleteLater)
+        self.reply_worker.start()
+
+    def _reply_completed(self, payload: dict) -> None:
+        self.reply_worker = None
+        recruiter = self._selected_recruiter()
+        if recruiter:
+            self.context.database.update_inbox_reply_state(recruiter["id"], status="replied")
+        self._set_busy(False)
+        self.context.bus.logs_updated.emit()
+        self.context.bus.replies_updated.emit()
+        self.context.bus.notification_requested.emit("Reply Sent", f"Reply sent at {payload['sent_at']}.", "success")
+
+    def _reply_failed(self, message: str) -> None:
+        self.reply_worker = None
+        self._set_busy(False)
+        self.context.bus.notification_requested.emit("Reply Failed", message, "error")
+
+    def _set_busy(self, busy: bool) -> None:
+        for button in [
+            self.send_button,
+            self.manual_button,
+            self.auto_button,
+            self.gmail_button,
+            self.completed_button,
+            self.interested_button,
+            self.not_interested_button,
+            self.archive_button,
+            self.save_notes_button,
+        ]:
+            button.setEnabled(not busy)
+
+    def update_state(self, *, status: str | None = None, interest_status: str | None = None, archived: int | None = None) -> None:
+        recruiter = self._selected_recruiter()
+        if recruiter is None:
+            return
+        self.context.database.update_inbox_reply_state(
+            recruiter["id"],
+            status=status,
+            interest_status=interest_status,
+            archived=archived,
+        )
+        self.context.bus.replies_updated.emit()
+
+    def save_notes(self) -> None:
+        recruiter = self._selected_recruiter()
+        if recruiter is None:
+            return
+        self.context.database.update_inbox_reply_state(recruiter["id"], notes=self.notes_editor.toPlainText().strip())
+        self.context.bus.replies_updated.emit()
+        self.context.bus.notification_requested.emit("Notes Saved", "Reply notes updated.", "success")
+
+    def open_gmail_thread(self) -> None:
+        recruiter = self._selected_recruiter()
+        if recruiter is None:
+            return
+        latest_message_id = (self.current_row.get("latest_message_id") or "").strip()
+        url = (
+            f"https://mail.google.com/mail/u/0/#search/rfc822msgid%3A{quote(latest_message_id)}"
+            if latest_message_id
+            else f"https://mail.google.com/mail/u/0/#search/{quote(recruiter['email'])}"
+        )
+        QDesktopServices.openUrl(QUrl(url))
+
+    def shutdown(self) -> None:
+        if self.reply_worker and self.reply_worker.isRunning():
+            self.reply_worker.wait(5000)

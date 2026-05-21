@@ -1,0 +1,49 @@
+Architecture:
+- PyQt6 desktop app
+- SQLite in `database/hireflow.sqlite3`
+- SMTP in `services/email_service.py`
+- IMAP sync in `services/imap_service.py`
+- UI pages in `ui/pages/`
+
+Completed:
+- Gmail IMAP mailbox quoting + retry fix
+- Structured mail/DB logging
+- Runtime reset script
+- Inbox Replies page scaffold
+- Conversation/inbox reply DB tables
+- Direct reply worker
+- Recruiter email auto-parser + CSV generator
+- Git-safe files added
+- Windows build script added
+
+Pending:
+- Final SIT/UAT after reply UI compile/tests
+- Optional live manual reply canary
+- Optional safe sample XLSX regeneration
+
+Modified Files:
+- app/workers.py
+- app/signals.py
+- config/app_config.py
+- database/manager.py
+- database/schema.py
+- services/email_service.py
+- services/imap_service.py
+- services/scheduler_service.py
+- services/validation.py
+- ui/main_window.py
+- ui/pages/__init__.py
+- ui/pages/recruiters_page.py
+- ui/pages/inbox_replies_page.py
+- .env.example
+- README.md
+- scripts/reset_runtime_state.py
+
+Blockers:
+- None known before final test pass
+
+Next Steps:
+- run unit tests
+- run offscreen UI smoke
+- rebuild app
+- verify clean DB/log state
