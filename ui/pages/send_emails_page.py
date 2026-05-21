@@ -49,9 +49,11 @@ class SendEmailsPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
+        self.setMinimumWidth(1180)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
+        hero_card.setProperty("variant", "hero")
         hero_layout = QVBoxLayout(hero_card)
         eyebrow = QLabel("Campaign")
         eyebrow.setObjectName("Eyebrow")
@@ -66,6 +68,7 @@ class SendEmailsPage(QWidget):
 
         top_card = QFrame()
         top_card.setObjectName("Card")
+        top_card.setProperty("variant", "accent")
         top_layout = QVBoxLayout(top_card)
         intro = QLabel(
             "Use placeholders like {{recruiter_name}}, {{company}}, {{sender_name}}, and {{sender_email}}."
@@ -125,16 +128,21 @@ class SendEmailsPage(QWidget):
 
         table_card = QFrame()
         table_card.setObjectName("Card")
+        table_card.setMinimumWidth(980)
         table_layout = QVBoxLayout(table_card)
+        table_layout.setContentsMargins(18, 18, 18, 18)
+        table_layout.setSpacing(10)
         pending_title = QLabel("Pending Initial Recipients")
         pending_title.setObjectName("SectionTitle")
         table_layout.addWidget(pending_title)
         configure_table(
             self.table,
             ["Name", "Company", "Email", "Created"],
+            column_widths=[180, 170, 260, 120],
         )
         table_layout.addWidget(self.table)
-        layout.addWidget(table_card, 1)
+        layout.addWidget(table_card)
+        layout.addStretch(1)
 
     def pick_file(self, target_input: QLineEdit) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -196,7 +204,6 @@ class SendEmailsPage(QWidget):
                 for row in self.recipients
             ],
         )
-        self.table.resizeColumnsToContents()
         self.status_label.setText(f"{len(self.recipients)} recipient(s) are ready for initial outreach.")
         self.progress_bar.setMaximum(max(len(self.recipients), 1))
         self.progress_bar.setValue(0)

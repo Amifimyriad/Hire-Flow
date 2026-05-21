@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QScrollArea,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
@@ -42,22 +41,14 @@ class SettingsPage(QWidget):
         return widget
 
     def _build_ui(self) -> None:
-        root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(18)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        root_layout.addWidget(scroll)
-
-        content = QWidget()
-        scroll.setWidget(content)
-        layout = QVBoxLayout(content)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
+        self.setMinimumWidth(1040)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
+        hero_card.setProperty("variant", "hero")
         hero_layout = QVBoxLayout(hero_card)
         eyebrow = QLabel("Workspace")
         eyebrow.setObjectName("Eyebrow")
@@ -72,7 +63,9 @@ class SettingsPage(QWidget):
 
         mail_card = QFrame()
         mail_card.setObjectName("Card")
+        mail_card.setProperty("variant", "accent")
         mail_layout = QGridLayout(mail_card)
+        mail_layout.setContentsMargins(18, 18, 18, 18)
         mail_layout.addWidget(QLabel("Mail Identity"), 0, 0, 1, 2)
 
         sender_name = self._line_edit()
@@ -128,7 +121,9 @@ class SettingsPage(QWidget):
 
         delivery_card = QFrame()
         delivery_card.setObjectName("Card")
+        delivery_card.setProperty("variant", "subtle")
         delivery_layout = QFormLayout(delivery_card)
+        delivery_layout.setContentsMargins(18, 18, 18, 18)
         daily_limit = self._spin_box(1, 500)
         delay_min = self._spin_box(1, 120)
         delay_max = self._spin_box(1, 300)
@@ -176,6 +171,7 @@ class SettingsPage(QWidget):
         actions.addWidget(test_imap_button)
         actions.addWidget(save_button)
         layout.addLayout(actions)
+        layout.addStretch(1)
 
     def load_settings(self) -> None:
         settings = self.context.database.get_settings()

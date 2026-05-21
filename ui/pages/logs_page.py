@@ -35,9 +35,11 @@ class LogsPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
+        self.setMinimumWidth(1440)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
+        hero_card.setProperty("variant", "hero")
         hero_layout = QVBoxLayout(hero_card)
         eyebrow = QLabel("Audit")
         eyebrow.setObjectName("Eyebrow")
@@ -73,12 +75,15 @@ class LogsPage(QWidget):
         email_logs_card = QFrame()
         email_logs_card.setObjectName("Card")
         email_logs_layout = QVBoxLayout(email_logs_card)
+        email_logs_layout.setContentsMargins(18, 18, 18, 18)
+        email_logs_layout.setSpacing(10)
         email_logs_title = QLabel("Email Logs")
         email_logs_title.setObjectName("SectionTitle")
         email_logs_layout.addWidget(email_logs_title)
         configure_table(
             self.table,
             ["When", "Type", "Recruiter", "Company", "Email", "Status", "Attempts", "Error"],
+            column_widths=[132, 90, 180, 160, 230, 100, 90, 280],
         )
         email_logs_layout.addWidget(self.table)
         tabs.addTab(email_logs_card, "Email Logs")
@@ -86,6 +91,8 @@ class LogsPage(QWidget):
         app_logs_card = QFrame()
         app_logs_card.setObjectName("Card")
         app_logs_layout = QVBoxLayout(app_logs_card)
+        app_logs_layout.setContentsMargins(18, 18, 18, 18)
+        app_logs_layout.setSpacing(10)
         app_logs_title = QLabel("Application Log")
         app_logs_title.setObjectName("SectionTitle")
         app_logs_layout.addWidget(app_logs_title)
@@ -94,6 +101,7 @@ class LogsPage(QWidget):
         tabs.addTab(app_logs_card, "Application Log")
 
         layout.addWidget(tabs, 1)
+        layout.addStretch(1)
 
     def refresh_data(self) -> None:
         rows = self.context.database.list_logs(
@@ -116,7 +124,6 @@ class LogsPage(QWidget):
                 for row in rows
             ],
         )
-        self.table.resizeColumnsToContents()
         self.app_log_viewer.setPlainText(self.context.logger.tail())
 
     def export_logs(self) -> None:

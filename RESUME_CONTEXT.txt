@@ -4,6 +4,7 @@ Architecture:
 - SMTP in `services/email_service.py`
 - IMAP sync in `services/imap_service.py`
 - UI pages in `ui/pages/`
+- Centralized UI theme system in `ui/styles.py`
 
 Completed:
 - Gmail IMAP mailbox quoting + retry fix
@@ -15,13 +16,34 @@ Completed:
 - Recruiter email auto-parser + CSV generator
 - Git-safe files added
 - Windows build script added
+- Full UI design-system refactor to dark graphite / navy glass surfaces
+- Arc-style floating sidebar and elevated content shell
+- Rebuilt dashboard hierarchy, metric cards, and split-pane data sections
+- Rebuilt Inbox Replies into a split workspace with search, triage, notes, and reply composer
+- Global table readability refactor with stronger headers, density, fixed widths, and interactive resizing
+- Responsive layout behavior for compact sidebar and vertical split fallback
+- Offscreen UI smoke render pass completed
+- Python compile validation completed for changed UI files
 
 Pending:
-- Final SIT/UAT after reply UI compile/tests
+- Populated-data UI QA for real recruiter/reply/follow-up rows
+- Final SIT/UAT after UI refactor
 - Optional live manual reply canary
 - Optional safe sample XLSX regeneration
+- Packaged build verification
 
 Modified Files:
+- ui/styles.py
+- ui/main_window.py
+- ui/widgets/stat_card.py
+- ui/widgets/table_utils.py
+- ui/pages/dashboard_page.py
+- ui/pages/inbox_replies_page.py
+- ui/pages/recruiters_page.py
+- ui/pages/send_emails_page.py
+- ui/pages/followups_page.py
+- ui/pages/logs_page.py
+- ui/pages/settings_page.py
 - app/workers.py
 - app/signals.py
 - config/app_config.py
@@ -31,19 +53,20 @@ Modified Files:
 - services/imap_service.py
 - services/scheduler_service.py
 - services/validation.py
-- ui/main_window.py
 - ui/pages/__init__.py
-- ui/pages/recruiters_page.py
-- ui/pages/inbox_replies_page.py
 - .env.example
 - README.md
 - scripts/reset_runtime_state.py
 
 Blockers:
-- None known before final test pass
+- `.venv` does not currently have `pytest` installed
+- Local SQLite data is empty, so populated table/readability QA is still pending
+- `database/hireflow.sqlite3-wal` and `database/hireflow.sqlite3-shm` were removed from worktree state during runtime smoke
 
 Next Steps:
-- run unit tests
-- run offscreen UI smoke
-- rebuild app
-- verify clean DB/log state
+- install/enable `pytest` in `.venv`
+- run unit/integration tests
+- repopulate sample recruiter/reply/follow-up data for UI QA
+- verify populated table readability and inbox workflow
+- rebuild app package
+

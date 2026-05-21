@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from urllib.parse import quote
 
 from PyQt6.QtCore import Qt, QUrl
@@ -41,6 +42,11 @@ class InboxRepliesPage(QWidget):
         self.reply_subject = QLineEdit()
         self.reply_body = QTextEdit()
         self.status_label = QLabel("Select a recruiter reply.")
+        self.thread_count_label = QLabel("0 threads")
+        self.new_count_label = QLabel("0 new")
+        self.interested_count_label = QLabel("0 interested")
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.detail_splitter = QSplitter(Qt.Orientation.Vertical)
         self._build_ui()
         self.context.bus.replies_updated.connect(self.refresh_data)
         self.context.bus.logs_updated.connect(self.refresh_data)
@@ -50,121 +56,207 @@ class InboxRepliesPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
+        self.setMinimumWidth(1360)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
-        hero_layout = QVBoxLayout(hero_card)
+        hero_card.setProperty("variant", "hero")
+        hero_layout = QHBoxLayout(hero_card)
+        hero_layout.setContentsMargins(22, 20, 22, 20)
+        hero_layout.setSpacing(16)
+
+        hero_copy = QVBoxLayout()
+        hero_copy.setSpacing(6)
         eyebrow = QLabel("Inbox")
         eyebrow.setObjectName("Eyebrow")
-        title = QLabel("Review recruiter conversations in a cleaner split-view inbox.")
+        title = QLabel("Recruiter conversations, notes, and replies in one Linear-style workspace.")
         title.setObjectName("SectionTitle")
-        body = QLabel("Search threads, update status, add notes, and reply without leaving HireFlow.")
+        body = QLabel("Search threads, scan statuses, update notes, and send replies without losing context.")
         body.setObjectName("HeroBody")
-        hero_layout.addWidget(eyebrow)
-        hero_layout.addWidget(title)
-        hero_layout.addWidget(body)
-        layout.addWidget(hero_card)
+        body.setWordWrap(True)
+        hero_copy.addWidget(eyebrow)
+        hero_copy.addWidget(title)
+        hero_copy.addWidget(body)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        stat_row = QHBoxLayout()
+        for label in [self.thread_count_label, self.new_count_label, self.interested_count_label]:
+            label.setObjectName("Pill")
+            stat_row.addWidget(label)
+        stat_row.addStretch(1)
+        hero_copy.addLayout(stat_row)
+
+        hero_layout.addLayout(hero_copy, 1)
+        layout.addWidget(hero_card)
 
         thread_card = QFrame()
         thread_card.setObjectName("Card")
+        thread_card.setMinimumWidth(520)
+        thread_card.setMaximumWidth(620)
         thread_layout = QVBoxLayout(thread_card)
+        thread_layout.setContentsMargins(18, 18, 18, 18)
+        thread_layout.setSpacing(12)
+
+        thread_header = QHBoxLayout()
+        thread_title = QLabel("Threads")
+        thread_title.setObjectName("SectionTitle")
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.refresh_data)
+        thread_header.addWidget(thread_title)
+        thread_header.addStretch(1)
+        thread_header.addWidget(refresh_button)
+        thread_layout.addLayout(thread_header)
+
         toolbar = QHBoxLayout()
         self.search_input.setPlaceholderText("Search recruiter, company, email, subject...")
         self.search_input.textChanged.connect(self.apply_filters)
         self.filter_box.addItems(["all", "new", "replied", "completed", "interested", "not_interested"])
         self.filter_box.currentTextChanged.connect(self.apply_filters)
-        refresh_button = QPushButton("Refresh")
-        refresh_button.clicked.connect(self.refresh_data)
         toolbar.addWidget(self.search_input, 1)
         toolbar.addWidget(self.filter_box)
-        toolbar.addWidget(refresh_button)
         thread_layout.addLayout(toolbar)
+
         configure_table(
             self.table,
-            ["Recruiter", "Company", "Subject", "Received", "Status"],
+            ["Recruiter", "Company", "Latest", "Received", "Status"],
+            column_widths=[180, 160, 280, 132, 150],
         )
         self.table.itemSelectionChanged.connect(self.on_selection_changed)
         thread_layout.addWidget(self.table)
 
         detail_card = QFrame()
         detail_card.setObjectName("Card")
+        detail_card.setProperty("variant", "accent")
+        detail_card.setMinimumWidth(820)
         detail_layout = QVBoxLayout(detail_card)
+        detail_layout.setContentsMargins(18, 18, 18, 18)
+        detail_layout.setSpacing(12)
+
         detail_header = QHBoxLayout()
         header_copy = QVBoxLayout()
-        header_copy.setSpacing(4)
-        thread_title = QLabel("Conversation")
-        thread_title.setObjectName("SectionTitle")
+        header_copy.setSpacing(6)
+        conversation_title = QLabel("Conversation")
+        conversation_title.setObjectName("SectionTitle")
         self.status_label.setObjectName("Muted")
-        header_copy.addWidget(thread_title)
+        self.status_label.setWordWrap(True)
+        header_copy.addWidget(conversation_title)
         header_copy.addWidget(self.status_label)
-        detail_actions = QHBoxLayout()
-        manual_button = QPushButton("Reply Manually")
-        manual_button.clicked.connect(self.prepare_manual_reply)
-        auto_button = QPushButton("AI/Auto Reply")
-        auto_button.clicked.connect(self.auto_reply)
-        gmail_button = QPushButton("Open Gmail Thread")
-        gmail_button.clicked.connect(self.open_gmail_thread)
-        send_button = QPushButton("Send Reply")
-        send_button.setObjectName("PrimaryButton")
-        send_button.clicked.connect(self.send_reply)
-        self.send_button = send_button
-        self.manual_button = manual_button
-        self.auto_button = auto_button
-        self.gmail_button = gmail_button
-        for widget in [manual_button, auto_button, gmail_button, send_button]:
-            detail_actions.addWidget(widget)
         detail_header.addLayout(header_copy, 1)
-        detail_header.addLayout(detail_actions)
         detail_layout.addLayout(detail_header)
 
-        quick_actions = QHBoxLayout()
-        completed_button = QPushButton("Mark Completed")
+        action_row = QHBoxLayout()
+        manual_button = QPushButton("Manual Draft")
+        manual_button.clicked.connect(self.prepare_manual_reply)
+        auto_button = QPushButton("Quick Reply")
+        auto_button.clicked.connect(self.auto_reply)
+        gmail_button = QPushButton("Open Gmail")
+        gmail_button.clicked.connect(self.open_gmail_thread)
+        completed_button = QPushButton("Complete")
         completed_button.clicked.connect(lambda: self.update_state(status="completed"))
         interested_button = QPushButton("Interested")
         interested_button.clicked.connect(lambda: self.update_state(interest_status="interested"))
-        not_interested_button = QPushButton("Not Interested")
+        not_interested_button = QPushButton("Declined")
         not_interested_button.clicked.connect(lambda: self.update_state(interest_status="not_interested"))
         archive_button = QPushButton("Archive")
         archive_button.clicked.connect(lambda: self.update_state(archived=1))
-        save_notes_button = QPushButton("Save Notes")
-        save_notes_button.clicked.connect(self.save_notes)
+        self.manual_button = manual_button
+        self.auto_button = auto_button
+        self.gmail_button = gmail_button
         self.completed_button = completed_button
         self.interested_button = interested_button
         self.not_interested_button = not_interested_button
         self.archive_button = archive_button
-        self.save_notes_button = save_notes_button
-        for widget in [completed_button, interested_button, not_interested_button, archive_button, save_notes_button]:
-            quick_actions.addWidget(widget)
-        quick_actions.addStretch(1)
-        detail_layout.addLayout(quick_actions)
+        for widget in [
+            manual_button,
+            auto_button,
+            gmail_button,
+            completed_button,
+            interested_button,
+            not_interested_button,
+            archive_button,
+        ]:
+            action_row.addWidget(widget)
+        action_row.addStretch(1)
+        detail_layout.addLayout(action_row)
 
-        detail_layout.addWidget(QLabel("Full Conversation Thread"))
+        conversation_card = QFrame()
+        conversation_card.setObjectName("Card")
+        conversation_card.setProperty("variant", "subtle")
+        conversation_card.setMinimumHeight(300)
+        conversation_layout = QVBoxLayout(conversation_card)
+        conversation_layout.setContentsMargins(14, 14, 14, 14)
+        conversation_layout.setSpacing(10)
+        conversation_label = QLabel("Full Thread")
+        conversation_label.setObjectName("Eyebrow")
         self.thread_view.setOpenExternalLinks(True)
-        detail_layout.addWidget(self.thread_view, 1)
-        detail_layout.addWidget(QLabel("Notes / Comments"))
-        self.notes_editor.setMaximumHeight(90)
-        detail_layout.addWidget(self.notes_editor)
-        detail_layout.addWidget(QLabel("Reply Subject"))
-        detail_layout.addWidget(self.reply_subject)
-        detail_layout.addWidget(QLabel("Reply Body"))
-        self.reply_body.setMinimumHeight(160)
-        detail_layout.addWidget(self.reply_body, 1)
+        conversation_layout.addWidget(conversation_label)
+        conversation_layout.addWidget(self.thread_view)
 
-        splitter.addWidget(thread_card)
-        splitter.addWidget(detail_card)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 3)
-        splitter.setSizes([520, 860])
-        layout.addWidget(splitter, 1)
+        composer_card = QFrame()
+        composer_card.setObjectName("Card")
+        composer_card.setMinimumHeight(340)
+        composer_layout = QVBoxLayout(composer_card)
+        composer_layout.setContentsMargins(16, 16, 16, 16)
+        composer_layout.setSpacing(10)
+        notes_label = QLabel("Notes / Comments")
+        notes_label.setObjectName("Eyebrow")
+        composer_layout.addWidget(notes_label)
+        self.notes_editor.setMaximumHeight(110)
+        composer_layout.addWidget(self.notes_editor)
+
+        subject_label = QLabel("Reply Subject")
+        subject_label.setObjectName("Eyebrow")
+        composer_layout.addWidget(subject_label)
+        composer_layout.addWidget(self.reply_subject)
+
+        body_label = QLabel("Reply Body")
+        body_label.setObjectName("Eyebrow")
+        composer_layout.addWidget(body_label)
+        self.reply_body.setMinimumHeight(180)
+        composer_layout.addWidget(self.reply_body, 1)
+
+        composer_actions = QHBoxLayout()
+        save_notes_button = QPushButton("Save Notes")
+        save_notes_button.clicked.connect(self.save_notes)
+        send_button = QPushButton("Send Reply")
+        send_button.setObjectName("PrimaryButton")
+        send_button.clicked.connect(self.send_reply)
+        self.save_notes_button = save_notes_button
+        self.send_button = send_button
+        composer_actions.addWidget(save_notes_button)
+        composer_actions.addStretch(1)
+        composer_actions.addWidget(send_button)
+        composer_layout.addLayout(composer_actions)
+
+        self.detail_splitter.addWidget(conversation_card)
+        self.detail_splitter.addWidget(composer_card)
+        self.detail_splitter.setChildrenCollapsible(False)
+        self.detail_splitter.setStretchFactor(0, 1)
+        self.detail_splitter.setStretchFactor(1, 1)
+        self.detail_splitter.setSizes([440, 320])
+        detail_layout.addWidget(self.detail_splitter, 1)
+
+        self.main_splitter.addWidget(thread_card)
+        self.main_splitter.addWidget(detail_card)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setSizes([620, 960])
+        layout.addWidget(self.main_splitter, 1)
 
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self.search_input.setFocus)
         QShortcut(QKeySequence("Ctrl+Enter"), self, activated=self.send_reply)
         QShortcut(QKeySequence("Ctrl+Shift+R"), self, activated=self.refresh_data)
 
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+
     def refresh_data(self) -> None:
         self.rows = self.context.database.list_inbox_replies()
+        new_count = sum(1 for row in self.rows if row["status"] == "new")
+        interested_count = sum(1 for row in self.rows if row["interest_status"] == "interested")
+        self.thread_count_label.setText(f"{len(self.rows)} threads")
+        self.new_count_label.setText(f"{new_count} new")
+        self.interested_count_label.setText(f"{interested_count} interested")
         self.apply_filters()
 
     def apply_filters(self) -> None:
@@ -197,21 +289,23 @@ class InboxRepliesPage(QWidget):
         self.filtered_rows = rows
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
+            status = row["status"]
+            interest = row["interest_status"]
+            name = row["name"] if status != "new" else f"{row['name']}  NEW"
             values = [
-                row["name"] + ("  NEW" if row["status"] == "new" else ""),
+                name,
                 row["company"] or "-",
-                (row["latest_subject"] or "-")[:64],
+                (row["latest_subject"] or row["latest_preview"] or "-")[:86],
                 format_timestamp(row["last_received_at"]),
-                f"{row['status']} / {row['interest_status']}",
+                f"{status} / {interest}",
             ]
             for column_index, value in enumerate(values):
                 self.table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
-        self.table.resizeColumnsToContents()
         if rows:
             self.select_row(0)
         else:
             self.current_row = None
-            self.thread_view.setHtml("<p>No replies match the current filter.</p>")
+            self.thread_view.setHtml("<div style='padding:24px;'>No replies match the current filter.</div>")
             self.notes_editor.clear()
             self.reply_subject.clear()
             self.reply_body.clear()
@@ -229,24 +323,43 @@ class InboxRepliesPage(QWidget):
             return
         self.current_row = self.filtered_rows[indexes[0].row()]
         messages = self.context.database.get_conversation_messages(int(self.current_row["recruiter_id"]))
-        thread_html = []
-        for message in messages:
-            timestamp = message["received_at"] or message["sent_at"] or message["created_at"]
-            tone = "#6FA5FF" if message["direction"] == "outbound" else "#8EA0B8"
-            thread_html.append(
-                f"<div style='margin-bottom:12px; padding:12px; border-radius:14px; background:rgba(127,127,127,0.06);'>"
-                f"<div style='font-weight:700; color:{tone}; margin-bottom:4px;'>{message['direction'].title()}</div>"
-                f"<div style='font-size:12px; opacity:0.7; margin-bottom:6px;'>{format_timestamp(timestamp)}</div>"
-                f"<div style='font-weight:600; margin-bottom:6px;'>{message['subject'] or '(No Subject)'}</div>"
-                f"<div>{(message['body_html'] or message['body_text'] or '').replace(chr(10), '<br>')}</div>"
-                f"</div>"
-            )
-        self.thread_view.setHtml("".join(thread_html) or "<p>No thread history.</p>")
+        self.thread_view.setHtml(self._build_thread_html(messages))
         self.notes_editor.setPlainText(self.current_row.get("notes", ""))
-        self.reply_subject.setText(f"Re: {self.current_row['latest_subject']}".strip())
+        latest_subject = self.current_row["latest_subject"] or ""
+        self.reply_subject.setText(f"Re: {latest_subject}".strip())
         self.reply_body.setPlainText("")
         self.status_label.setText(
-            f"{self.current_row['name']} • {self.current_row['email']} • {self.current_row['status']} • {self.current_row['interest_status']}"
+            f"{self.current_row['name']}  •  {self.current_row['email']}  •  "
+            f"{self.current_row['status']}  •  {self.current_row['interest_status']}"
+        )
+
+    def _build_thread_html(self, messages: list[dict]) -> str:
+        if not messages:
+            return "<div style='padding:24px;'>No thread history.</div>"
+        bubbles = []
+        for message in messages:
+            timestamp = message["received_at"] or message["sent_at"] or message["created_at"]
+            direction = message["direction"].title()
+            tone = "#5AA2FF" if message["direction"] == "outbound" else "#9DB2D0"
+            subject = escape(message["subject"] or "(No Subject)")
+            body = escape(message["body_text"] or "").replace("\n", "<br>")
+            html_body = message["body_html"] or ""
+            content = html_body if html_body else body
+            bubbles.append(
+                f"""
+                <div style="margin:0 0 14px 0; padding:14px 16px; border-radius:18px;
+                            background:rgba(255,255,255,0.05); border:1px solid rgba(145,170,210,0.16);">
+                    <div style="font-size:12px; font-weight:700; color:{tone}; margin-bottom:6px;">{direction}</div>
+                    <div style="font-size:12px; color:#90A1BE; margin-bottom:8px;">{escape(format_timestamp(timestamp))}</div>
+                    <div style="font-size:14px; font-weight:700; color:#F4F8FF; margin-bottom:8px;">{subject}</div>
+                    <div style="font-size:13px; line-height:1.55; color:#D5E0F5;">{content}</div>
+                </div>
+                """
+            )
+        return (
+            "<div style='font-family:-apple-system, SF Pro Display, Segoe UI, sans-serif; padding:8px;'>"
+            + "".join(bubbles)
+            + "</div>"
         )
 
     def _selected_recruiter(self) -> dict | None:

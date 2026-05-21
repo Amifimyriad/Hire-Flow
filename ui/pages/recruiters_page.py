@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -26,6 +27,7 @@ class RecruitersPage(QWidget):
         self.preview_table = QTableWidget()
         self.recruiters_table = QTableWidget()
         self.import_button = QPushButton("Import Valid Recruiters")
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self._build_ui()
         self.context.bus.recruiters_updated.connect(self.refresh_data)
         self.refresh_data()
@@ -34,22 +36,32 @@ class RecruitersPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
+        self.setMinimumWidth(1360)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
+        hero_card.setProperty("variant", "hero")
         hero_layout = QVBoxLayout(hero_card)
         eyebrow = QLabel("Pipeline")
         eyebrow.setObjectName("Eyebrow")
-        title = QLabel("Import, parse, and maintain a polished recruiter list.")
+        title = QLabel("Import, parse, and maintain a recruiter pipeline built for real outbound work.")
         title.setObjectName("SectionTitle")
-        body = QLabel("Blend file import with quick email parsing to keep your workspace populated and clean.")
+        body = QLabel("Preview incoming data, repair invalid records, and keep the active recruiter table readable at a glance.")
         body.setObjectName("HeroBody")
+        body.setWordWrap(True)
         hero_layout.addWidget(eyebrow)
         hero_layout.addWidget(title)
         hero_layout.addWidget(body)
         layout.addWidget(hero_card)
 
-        actions = QHBoxLayout()
+        actions_card = QFrame()
+        actions_card.setObjectName("Card")
+        actions_card.setProperty("variant", "accent")
+        actions_layout = QVBoxLayout(actions_card)
+        actions_layout.setContentsMargins(18, 18, 18, 18)
+        actions_layout.setSpacing(14)
+
+        actions_row = QHBoxLayout()
         upload_button = QPushButton("Upload CSV / XLSX")
         upload_button.setObjectName("PrimaryButton")
         upload_button.clicked.connect(self.upload_file)
@@ -59,55 +71,78 @@ class RecruitersPage(QWidget):
         self.import_button.setEnabled(False)
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_data)
-        actions.addWidget(upload_button)
-        actions.addWidget(parse_button)
-        actions.addWidget(self.import_button)
-        actions.addStretch(1)
-        actions.addWidget(refresh_button)
-        layout.addLayout(actions)
+        actions_row.addWidget(upload_button)
+        actions_row.addWidget(parse_button)
+        actions_row.addWidget(self.import_button)
+        actions_row.addStretch(1)
+        actions_row.addWidget(refresh_button)
+        actions_layout.addLayout(actions_row)
 
-        email_card = QFrame()
-        email_card.setObjectName("Card")
-        email_layout = QVBoxLayout(email_card)
-        email_layout.addWidget(QLabel("Paste recruiter emails to auto-generate sample_recruiters.csv"))
+        prompt = QLabel("Paste recruiter emails to generate `sample_recruiters.csv` with inferred names and companies.")
+        prompt.setObjectName("Muted")
+        actions_layout.addWidget(prompt)
         self.email_input.setPlaceholderText("recruit@excelcorp.com\njobs@acme.ai")
-        self.email_input.setMaximumHeight(90)
-        email_layout.addWidget(self.email_input)
-        layout.addWidget(email_card)
+        self.email_input.setMaximumHeight(112)
+        actions_layout.addWidget(self.email_input)
+        layout.addWidget(actions_card)
 
+        summary_card = QFrame()
+        summary_card.setObjectName("Card")
+        summary_card.setProperty("variant", "subtle")
+        summary_layout = QVBoxLayout(summary_card)
+        summary_layout.setContentsMargins(16, 14, 16, 14)
+        summary_layout.setSpacing(6)
+        summary_label = QLabel("Import Summary")
+        summary_label.setObjectName("Eyebrow")
+        self.preview_summary.setWordWrap(True)
         self.preview_summary.setObjectName("Muted")
-        layout.addWidget(self.preview_summary)
-
-        splitter = QSplitter()
+        summary_layout.addWidget(summary_label)
+        summary_layout.addWidget(self.preview_summary)
+        layout.addWidget(summary_card)
 
         preview_card = QFrame()
         preview_card.setObjectName("Card")
+        preview_card.setMinimumWidth(720)
         preview_layout = QVBoxLayout(preview_card)
+        preview_layout.setContentsMargins(18, 18, 18, 18)
+        preview_layout.setSpacing(10)
         preview_title = QLabel("Import Preview")
         preview_title.setObjectName("SectionTitle")
         preview_layout.addWidget(preview_title)
         configure_table(
             self.preview_table,
             ["Row", "Name", "Company", "Email", "Validation"],
+            column_widths=[82, 170, 170, 240, 220],
         )
         preview_layout.addWidget(self.preview_table)
 
         recruiters_card = QFrame()
         recruiters_card.setObjectName("Card")
+        recruiters_card.setMinimumWidth(840)
         recruiters_layout = QVBoxLayout(recruiters_card)
+        recruiters_layout.setContentsMargins(18, 18, 18, 18)
+        recruiters_layout.setSpacing(10)
         imported_title = QLabel("Imported Recruiters")
         imported_title.setObjectName("SectionTitle")
         recruiters_layout.addWidget(imported_title)
         configure_table(
             self.recruiters_table,
-            ["Name", "Company", "Email", "Initial Sent", "Reply", "Follow-Ups", "Updated"],
+            ["Name", "Company", "Email", "Initial", "Reply", "Follow-Ups", "Updated"],
+            column_widths=[180, 160, 250, 90, 90, 110, 150],
         )
         recruiters_layout.addWidget(self.recruiters_table)
 
-        splitter.addWidget(preview_card)
-        splitter.addWidget(recruiters_card)
-        splitter.setSizes([650, 750])
-        layout.addWidget(splitter, 1)
+        self.splitter.addWidget(preview_card)
+        self.splitter.addWidget(recruiters_card)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setSizes([640, 820])
+        layout.addWidget(self.splitter)
+        layout.addStretch(1)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
 
     def upload_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -202,7 +237,7 @@ class RecruitersPage(QWidget):
                     row["name"],
                     row["company"] or "-",
                     row["email"],
-                    "Yes" if row["initial_sent"] else "No",
+                    "Sent" if row["initial_sent"] else "Pending",
                     "Yes" if row["reply_status"] else "No",
                     str(row["followup_count"]),
                     format_timestamp(row["updated_at"]),
@@ -210,4 +245,3 @@ class RecruitersPage(QWidget):
                 for row in recruiters
             ],
         )
-        self.recruiters_table.resizeColumnsToContents()

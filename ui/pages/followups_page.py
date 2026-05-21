@@ -39,9 +39,11 @@ class FollowUpsPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
+        self.setMinimumWidth(1180)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
+        hero_card.setProperty("variant", "hero")
         hero_layout = QVBoxLayout(hero_card)
         eyebrow = QLabel("Cadence")
         eyebrow.setObjectName("Eyebrow")
@@ -56,6 +58,7 @@ class FollowUpsPage(QWidget):
 
         compose_card = QFrame()
         compose_card.setObjectName("Card")
+        compose_card.setProperty("variant", "accent")
         compose_layout = QVBoxLayout(compose_card)
         helper = QLabel("Follow-ups are limited to two attempts per recruiter and skip recruiters who already replied.")
         helper.setObjectName("Muted")
@@ -105,16 +108,21 @@ class FollowUpsPage(QWidget):
 
         table_card = QFrame()
         table_card.setObjectName("Card")
+        table_card.setMinimumWidth(980)
         table_layout = QVBoxLayout(table_card)
+        table_layout.setContentsMargins(18, 18, 18, 18)
+        table_layout.setSpacing(10)
         due_title = QLabel("Due Follow-Ups")
         due_title.setObjectName("SectionTitle")
         table_layout.addWidget(due_title)
         configure_table(
             self.table,
             ["Due", "Attempt", "Recruiter", "Company", "Email"],
+            column_widths=[140, 92, 180, 160, 240],
         )
         table_layout.addWidget(self.table)
-        layout.addWidget(table_card, 1)
+        layout.addWidget(table_card)
+        layout.addStretch(1)
 
     def current_settings(self) -> dict[str, str]:
         return self.context.database.get_settings()
@@ -162,7 +170,6 @@ class FollowUpsPage(QWidget):
                 for row in self.followups
             ],
         )
-        self.table.resizeColumnsToContents()
         self.progress_bar.setMaximum(max(len(self.followups), 1))
         self.progress_bar.setValue(0)
         self.status_label.setText(f"{len(self.followups)} follow-up(s) are currently due.")
