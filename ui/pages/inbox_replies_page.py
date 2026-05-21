@@ -8,11 +8,11 @@ from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
-    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTextBrowser,
@@ -45,8 +45,9 @@ class InboxRepliesPage(QWidget):
         self.thread_count_label = QLabel("0 threads")
         self.new_count_label = QLabel("0 new")
         self.interested_count_label = QLabel("0 interested")
-        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.detail_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.workspace_host = QWidget()
+        self.workspace_layout = QGridLayout()
+        self._workspace_columns = 0
         self._build_ui()
         self.context.bus.replies_updated.connect(self.refresh_data)
         self.context.bus.logs_updated.connect(self.refresh_data)
@@ -88,13 +89,12 @@ class InboxRepliesPage(QWidget):
         hero_layout.addLayout(hero_copy, 1)
         layout.addWidget(hero_card)
 
-        thread_card = QFrame()
-        thread_card.setObjectName("Card")
-        thread_card.setMinimumWidth(520)
-        thread_card.setMaximumWidth(620)
-        thread_layout = QVBoxLayout(thread_card)
+        self.thread_card = QFrame()
+        self.thread_card.setObjectName("Card")
+        self.thread_card.setMinimumWidth(520)
+        thread_layout = QVBoxLayout(self.thread_card)
         thread_layout.setContentsMargins(18, 18, 18, 18)
-        thread_layout.setSpacing(12)
+        thread_layout.setSpacing(14)
 
         thread_header = QHBoxLayout()
         thread_title = QLabel("Threads")
@@ -120,16 +120,17 @@ class InboxRepliesPage(QWidget):
             ["Recruiter", "Company", "Latest", "Received", "Status"],
             column_widths=[180, 160, 280, 132, 150],
         )
+        self.table.setMinimumHeight(460)
         self.table.itemSelectionChanged.connect(self.on_selection_changed)
         thread_layout.addWidget(self.table)
 
-        detail_card = QFrame()
-        detail_card.setObjectName("Card")
-        detail_card.setProperty("variant", "accent")
-        detail_card.setMinimumWidth(820)
-        detail_layout = QVBoxLayout(detail_card)
+        self.detail_card = QFrame()
+        self.detail_card.setObjectName("Card")
+        self.detail_card.setProperty("variant", "accent")
+        self.detail_card.setMinimumWidth(760)
+        detail_layout = QVBoxLayout(self.detail_card)
         detail_layout.setContentsMargins(18, 18, 18, 18)
-        detail_layout.setSpacing(12)
+        detail_layout.setSpacing(14)
 
         detail_header = QHBoxLayout()
         header_copy = QVBoxLayout()
@@ -143,7 +144,9 @@ class InboxRepliesPage(QWidget):
         detail_header.addLayout(header_copy, 1)
         detail_layout.addLayout(detail_header)
 
-        action_row = QHBoxLayout()
+        action_grid = QGridLayout()
+        action_grid.setHorizontalSpacing(10)
+        action_grid.setVerticalSpacing(10)
         manual_button = QPushButton("Manual Draft")
         manual_button.clicked.connect(self.prepare_manual_reply)
         auto_button = QPushButton("Quick Reply")
@@ -165,7 +168,7 @@ class InboxRepliesPage(QWidget):
         self.interested_button = interested_button
         self.not_interested_button = not_interested_button
         self.archive_button = archive_button
-        for widget in [
+        for index, widget in enumerate([
             manual_button,
             auto_button,
             gmail_button,
@@ -173,34 +176,39 @@ class InboxRepliesPage(QWidget):
             interested_button,
             not_interested_button,
             archive_button,
-        ]:
-            action_row.addWidget(widget)
-        action_row.addStretch(1)
-        detail_layout.addLayout(action_row)
+        ]):
+            action_grid.addWidget(widget, index // 4, index % 4)
+        detail_layout.addLayout(action_grid)
 
         conversation_card = QFrame()
         conversation_card.setObjectName("Card")
         conversation_card.setProperty("variant", "subtle")
-        conversation_card.setMinimumHeight(300)
+        conversation_card.setMinimumHeight(380)
         conversation_layout = QVBoxLayout(conversation_card)
         conversation_layout.setContentsMargins(14, 14, 14, 14)
         conversation_layout.setSpacing(10)
         conversation_label = QLabel("Full Thread")
         conversation_label.setObjectName("Eyebrow")
         self.thread_view.setOpenExternalLinks(True)
+        self.thread_view.setMinimumHeight(320)
+        self.thread_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.thread_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         conversation_layout.addWidget(conversation_label)
         conversation_layout.addWidget(self.thread_view)
+        detail_layout.addWidget(conversation_card)
 
         composer_card = QFrame()
         composer_card.setObjectName("Card")
-        composer_card.setMinimumHeight(340)
+        composer_card.setMinimumHeight(460)
         composer_layout = QVBoxLayout(composer_card)
         composer_layout.setContentsMargins(16, 16, 16, 16)
-        composer_layout.setSpacing(10)
+        composer_layout.setSpacing(12)
         notes_label = QLabel("Notes / Comments")
         notes_label.setObjectName("Eyebrow")
         composer_layout.addWidget(notes_label)
-        self.notes_editor.setMaximumHeight(110)
+        self.notes_editor.setMinimumHeight(86)
+        self.notes_editor.setMaximumHeight(120)
+        self.notes_editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         composer_layout.addWidget(self.notes_editor)
 
         subject_label = QLabel("Reply Subject")
@@ -211,8 +219,10 @@ class InboxRepliesPage(QWidget):
         body_label = QLabel("Reply Body")
         body_label.setObjectName("Eyebrow")
         composer_layout.addWidget(body_label)
-        self.reply_body.setMinimumHeight(180)
-        composer_layout.addWidget(self.reply_body, 1)
+        self.reply_body.setMinimumHeight(260)
+        self.reply_body.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.reply_body.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        composer_layout.addWidget(self.reply_body)
 
         composer_actions = QHBoxLayout()
         save_notes_button = QPushButton("Save Notes")
@@ -226,22 +236,15 @@ class InboxRepliesPage(QWidget):
         composer_actions.addStretch(1)
         composer_actions.addWidget(send_button)
         composer_layout.addLayout(composer_actions)
+        detail_layout.addWidget(composer_card)
 
-        self.detail_splitter.addWidget(conversation_card)
-        self.detail_splitter.addWidget(composer_card)
-        self.detail_splitter.setChildrenCollapsible(False)
-        self.detail_splitter.setStretchFactor(0, 1)
-        self.detail_splitter.setStretchFactor(1, 1)
-        self.detail_splitter.setSizes([440, 320])
-        detail_layout.addWidget(self.detail_splitter, 1)
-
-        self.main_splitter.addWidget(thread_card)
-        self.main_splitter.addWidget(detail_card)
-        self.main_splitter.setChildrenCollapsible(False)
-        self.main_splitter.setStretchFactor(0, 0)
-        self.main_splitter.setStretchFactor(1, 1)
-        self.main_splitter.setSizes([620, 960])
-        layout.addWidget(self.main_splitter, 1)
+        self.workspace_layout.setContentsMargins(0, 0, 0, 0)
+        self.workspace_layout.setHorizontalSpacing(18)
+        self.workspace_layout.setVerticalSpacing(18)
+        self.workspace_host.setLayout(self.workspace_layout)
+        layout.addWidget(self.workspace_host)
+        layout.addStretch(1)
+        self._apply_workspace_layout()
 
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self.search_input.setFocus)
         QShortcut(QKeySequence("Ctrl+Enter"), self, activated=self.send_reply)
@@ -249,6 +252,21 @@ class InboxRepliesPage(QWidget):
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
+        self._apply_workspace_layout()
+
+    def _apply_workspace_layout(self) -> None:
+        columns = 2 if self.window().width() >= 1600 else 1
+        if columns == self._workspace_columns:
+            return
+        self._workspace_columns = columns
+        while self.workspace_layout.count():
+            item = self.workspace_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        cards = [self.thread_card, self.detail_card]
+        for index, card in enumerate(cards):
+            self.workspace_layout.addWidget(card, index // columns, index % columns)
+            card.show()
 
     def refresh_data(self) -> None:
         self.rows = self.context.database.list_inbox_replies()

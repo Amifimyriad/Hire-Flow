@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
     QPushButton,
-    QSplitter,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -27,16 +26,18 @@ class RecruitersPage(QWidget):
         self.preview_table = QTableWidget()
         self.recruiters_table = QTableWidget()
         self.import_button = QPushButton("Import Valid Recruiters")
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.tables_host = QWidget()
+        self.tables_layout = QGridLayout()
+        self._table_columns = 0
         self._build_ui()
         self.context.bus.recruiters_updated.connect(self.refresh_data)
         self.refresh_data()
 
     def _build_ui(self) -> None:
+        self.setMinimumWidth(1040)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
-        self.setMinimumWidth(1360)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
@@ -100,10 +101,9 @@ class RecruitersPage(QWidget):
         summary_layout.addWidget(self.preview_summary)
         layout.addWidget(summary_card)
 
-        preview_card = QFrame()
-        preview_card.setObjectName("Card")
-        preview_card.setMinimumWidth(720)
-        preview_layout = QVBoxLayout(preview_card)
+        self.preview_card = QFrame()
+        self.preview_card.setObjectName("Card")
+        preview_layout = QVBoxLayout(self.preview_card)
         preview_layout.setContentsMargins(18, 18, 18, 18)
         preview_layout.setSpacing(10)
         preview_title = QLabel("Import Preview")
@@ -116,10 +116,9 @@ class RecruitersPage(QWidget):
         )
         preview_layout.addWidget(self.preview_table)
 
-        recruiters_card = QFrame()
-        recruiters_card.setObjectName("Card")
-        recruiters_card.setMinimumWidth(840)
-        recruiters_layout = QVBoxLayout(recruiters_card)
+        self.recruiters_card = QFrame()
+        self.recruiters_card.setObjectName("Card")
+        recruiters_layout = QVBoxLayout(self.recruiters_card)
         recruiters_layout.setContentsMargins(18, 18, 18, 18)
         recruiters_layout.setSpacing(10)
         imported_title = QLabel("Imported Recruiters")
@@ -132,17 +131,31 @@ class RecruitersPage(QWidget):
         )
         recruiters_layout.addWidget(self.recruiters_table)
 
-        self.splitter.addWidget(preview_card)
-        self.splitter.addWidget(recruiters_card)
-        self.splitter.setChildrenCollapsible(False)
-        self.splitter.setStretchFactor(0, 1)
-        self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([640, 820])
-        layout.addWidget(self.splitter)
+        self.tables_layout.setContentsMargins(0, 0, 0, 0)
+        self.tables_layout.setHorizontalSpacing(18)
+        self.tables_layout.setVerticalSpacing(18)
+        self.tables_host.setLayout(self.tables_layout)
+        layout.addWidget(self.tables_host)
         layout.addStretch(1)
+        self._apply_table_layout()
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
+        self._apply_table_layout()
+
+    def _apply_table_layout(self) -> None:
+        columns = 2 if self.width() >= 1560 else 1
+        if columns == self._table_columns:
+            return
+        self._table_columns = columns
+        while self.tables_layout.count():
+            item = self.tables_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        cards = [self.preview_card, self.recruiters_card]
+        for index, card in enumerate(cards):
+            self.tables_layout.addWidget(card, index // columns, index % columns)
+            card.show()
 
     def upload_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(

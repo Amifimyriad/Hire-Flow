@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QStatusBar,
     QSystemTrayIcon,
@@ -37,7 +38,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.context = context
         self.reply_worker = None
-        self.sidebar_expanded = True
         self.page_buttons: dict[str, QPushButton] = {}
         self.section_labels: list[QLabel] = []
         self.page_title = QLabel("Dashboard")
@@ -52,37 +52,30 @@ class MainWindow(QMainWindow):
             "Dashboard": {
                 "title": "Dashboard",
                 "subtitle": "Track outreach volume, recruiter responses, and the follow-up queue.",
-                "short": "Dash",
             },
             "Send Emails": {
                 "title": "Send Emails",
                 "subtitle": "Compose high-signal outreach with a controlled delivery queue.",
-                "short": "Send",
             },
             "Follow-Ups": {
                 "title": "Follow-Ups",
                 "subtitle": "Review due reminders and keep the cadence disciplined.",
-                "short": "FUps",
             },
             "Inbox Replies": {
                 "title": "Inbox Replies",
                 "subtitle": "Triage recruiter conversations in a split-view productivity inbox.",
-                "short": "Reply",
             },
             "Recruiters": {
                 "title": "Recruiters",
                 "subtitle": "Import, enrich, and manage your recruiter pipeline cleanly.",
-                "short": "Leads",
             },
             "Logs": {
                 "title": "Logs",
                 "subtitle": "Audit delivery events, runtime diagnostics, and operational health.",
-                "short": "Logs",
             },
             "Settings": {
                 "title": "Settings",
                 "subtitle": "Configure mail delivery, sync, theme, and workspace behavior.",
-                "short": "Pref",
             },
         }
         self._nav_groups = [
@@ -97,7 +90,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self.setWindowTitle(f"{self.context.config.app_name} {self.context.config.version}")
         self.resize(1480, 920)
-        self.setMinimumSize(1080, 720)
+        self.setMinimumSize(1180, 760)
 
         icon_path = self.context.config.paths.assets_dir / "hireflow_icon.png"
         if icon_path.exists():
@@ -124,33 +117,30 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(22, 18, 22, 18)
         root_layout.setSpacing(18)
 
-        sidebar_card = QFrame()
-        sidebar_card.setObjectName("Sidebar")
-        sidebar_card.setFixedWidth(280)
-        self.sidebar_card = sidebar_card
-        sidebar_layout = QVBoxLayout(sidebar_card)
-        sidebar_layout.setContentsMargins(16, 18, 16, 18)
-        sidebar_layout.setSpacing(14)
+        self.sidebar_card = QFrame()
+        self.sidebar_card.setObjectName("Sidebar")
+        self.sidebar_card.setFixedWidth(332)
+        sidebar_shell = QVBoxLayout(self.sidebar_card)
+        sidebar_shell.setContentsMargins(16, 18, 16, 18)
+        sidebar_shell.setSpacing(14)
 
-        shell_header = QHBoxLayout()
-        shell_header.setSpacing(10)
+        sidebar_top = QWidget()
+        sidebar_top_layout = QVBoxLayout(sidebar_top)
+        sidebar_top_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_top_layout.setSpacing(14)
+
         brand_block = QVBoxLayout()
-        brand_block.setSpacing(3)
-        self.workspace_label = QLabel("Outbound Workspace")
-        self.workspace_label.setObjectName("Eyebrow")
-        self.brand_label = QLabel("HireFlow")
-        self.brand_label.setStyleSheet("font-size: 28px; font-weight: 700;")
-        self.brand_subtitle = QLabel("Recruiter ops cockpit")
-        self.brand_subtitle.setObjectName("Muted")
-        brand_block.addWidget(self.workspace_label)
-        brand_block.addWidget(self.brand_label)
-        brand_block.addWidget(self.brand_subtitle)
-        self.collapse_button = QPushButton("Compact")
-        self.collapse_button.setObjectName("GhostButton")
-        self.collapse_button.clicked.connect(self.toggle_sidebar)
-        shell_header.addLayout(brand_block, 1)
-        shell_header.addWidget(self.collapse_button, 0, Qt.AlignmentFlag.AlignTop)
-        sidebar_layout.addLayout(shell_header)
+        brand_block.setSpacing(4)
+        workspace_label = QLabel("Outbound Workspace")
+        workspace_label.setObjectName("Eyebrow")
+        brand_label = QLabel("HireFlow")
+        brand_label.setStyleSheet("font-size: 28px; font-weight: 700;")
+        brand_subtitle = QLabel("Recruiter ops cockpit")
+        brand_subtitle.setObjectName("Muted")
+        brand_block.addWidget(workspace_label)
+        brand_block.addWidget(brand_label)
+        brand_block.addWidget(brand_subtitle)
+        sidebar_top_layout.addLayout(brand_block)
 
         status_card = QFrame()
         status_card.setObjectName("Card")
@@ -164,25 +154,41 @@ class MainWindow(QMainWindow):
         self.sync_state.setObjectName("StatusPill")
         self.sync_detail = QLabel("Inbox monitoring ready.")
         self.sync_detail.setObjectName("Muted")
+        self.sync_detail.setWordWrap(True)
         status_layout.addWidget(status_eyebrow)
         status_layout.addWidget(self.sync_state, 0, Qt.AlignmentFlag.AlignLeft)
         status_layout.addWidget(self.sync_detail)
-        sidebar_layout.addWidget(status_card)
+        sidebar_top_layout.addWidget(status_card)
+
+        sidebar_shell.addWidget(sidebar_top)
+
+        nav_scroll = QScrollArea()
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        nav_content = QWidget()
+        nav_layout = QVBoxLayout(nav_content)
+        nav_layout.setContentsMargins(0, 0, 6, 0)
+        nav_layout.setSpacing(12)
 
         for section_title, names in self._nav_groups:
             label = QLabel(section_title)
             label.setObjectName("Eyebrow")
             self.section_labels.append(label)
-            sidebar_layout.addWidget(label)
+            nav_layout.addWidget(label)
             for name in names:
                 button = QPushButton(name)
                 button.setObjectName("SidebarButton")
                 button.setProperty("active", name == "Dashboard")
                 button.clicked.connect(lambda _, value=name: self.switch_page(value))
                 self.page_buttons[name] = button
-                sidebar_layout.addWidget(button)
+                nav_layout.addWidget(button)
+        nav_layout.addStretch(1)
 
-        sidebar_layout.addStretch(1)
+        nav_scroll.setWidget(nav_content)
+        sidebar_shell.addWidget(nav_scroll, 1)
 
         profile_card = QFrame()
         profile_card.setObjectName("Card")
@@ -196,35 +202,34 @@ class MainWindow(QMainWindow):
         self.profile_name = QLabel()
         self.profile_email = QLabel()
         self.profile_email.setObjectName("Muted")
+        self.profile_email.setWordWrap(True)
         profile_layout.addWidget(profile_eyebrow)
         profile_layout.addWidget(self.profile_name)
         profile_layout.addWidget(self.profile_email)
-        sidebar_layout.addWidget(profile_card)
-        root_layout.addWidget(sidebar_card, 0)
+        sidebar_shell.addWidget(profile_card)
+        root_layout.addWidget(self.sidebar_card, 0)
 
-        content_shell = QFrame()
-        content_shell.setObjectName("ContentShell")
-        self.content_shell = content_shell
-        content_layout = QVBoxLayout(content_shell)
+        self.content_shell = QFrame()
+        self.content_shell.setObjectName("ContentShell")
+        content_layout = QVBoxLayout(self.content_shell)
         content_layout.setContentsMargins(18, 18, 18, 18)
         content_layout.setSpacing(16)
 
-        header_card = QFrame()
-        header_card.setObjectName("Card")
-        header_card.setProperty("variant", "hero")
-        self.header_card = header_card
-        header_layout = QHBoxLayout(header_card)
+        self.header_card = QFrame()
+        self.header_card.setObjectName("Card")
+        self.header_card.setProperty("variant", "hero")
+        header_layout = QHBoxLayout(self.header_card)
         header_layout.setContentsMargins(24, 20, 24, 20)
         header_layout.setSpacing(18)
 
         title_block = QVBoxLayout()
         title_block.setSpacing(6)
-        self.page_context = QLabel("Recruiter Operations")
-        self.page_context.setObjectName("Eyebrow")
+        page_context = QLabel("Recruiter Operations")
+        page_context.setObjectName("Eyebrow")
         self.page_title.setObjectName("PageTitle")
         self.page_subtitle.setObjectName("HeroBody")
         self.page_subtitle.setWordWrap(True)
-        title_block.addWidget(self.page_context)
+        title_block.addWidget(page_context)
         title_block.addWidget(self.page_title)
         title_block.addWidget(self.page_subtitle)
 
@@ -241,7 +246,7 @@ class MainWindow(QMainWindow):
 
         header_layout.addLayout(title_block, 1)
         header_layout.addLayout(action_block)
-        content_layout.addWidget(header_card)
+        content_layout.addWidget(self.header_card)
 
         self.pages = {
             "Dashboard": DashboardPage(self.context, self.sync_replies_manually),
@@ -257,19 +262,19 @@ class MainWindow(QMainWindow):
             "Send Emails": 1180,
             "Follow-Ups": 1180,
             "Inbox Replies": 1360,
-            "Recruiters": 1360,
-            "Logs": 1460,
+            "Recruiters": 1320,
+            "Logs": 1440,
             "Settings": 1040,
         }
         for name in self._page_meta:
             container = PageScrollArea(self.pages[name], min_width=min_widths[name])
             self.page_containers[name] = container
             self.stack.addWidget(container)
+
         content_layout.addWidget(self.stack, 1)
-        root_layout.addWidget(content_shell, 1)
+        root_layout.addWidget(self.content_shell, 1)
 
         self.refresh_profile()
-        self._render_sidebar_state()
 
         status_bar = QStatusBar()
         status_bar.showMessage("Ready")
@@ -284,26 +289,6 @@ class MainWindow(QMainWindow):
         self.context.bus.background_status.connect(self.statusBar().showMessage)
         self.context.bus.replies_updated.connect(lambda: self._set_sync_state("Updated"))
 
-    def _render_sidebar_state(self) -> None:
-        expanded = self.sidebar_expanded and self.width() >= 1320
-        self.sidebar_card.setFixedWidth(280 if expanded else 96)
-        self.brand_label.setText("HireFlow" if expanded else "HF")
-        self.collapse_button.setText("Compact" if expanded else "+")
-        self.collapse_button.setFixedWidth(96 if expanded else 36)
-        self.workspace_label.setVisible(expanded)
-        self.brand_subtitle.setVisible(expanded)
-        self.status_card.setVisible(expanded)
-        self.profile_card.setVisible(expanded)
-        for label in self.section_labels:
-            label.setVisible(expanded)
-        for name, button in self.page_buttons.items():
-            button.setText(name if expanded else self._page_meta[name]["short"])
-            button.setToolTip(name)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        self._render_sidebar_state()
-
     def switch_page(self, name: str) -> None:
         page_names = list(self._page_meta.keys())
         if name not in self.pages:
@@ -316,10 +301,6 @@ class MainWindow(QMainWindow):
             button.setProperty("active", page_name == name)
             button.style().unpolish(button)
             button.style().polish(button)
-
-    def toggle_sidebar(self) -> None:
-        self.sidebar_expanded = not self.sidebar_expanded
-        self._render_sidebar_state()
 
     def _set_sync_state(self, text: str) -> None:
         self.sync_state.setText(text)

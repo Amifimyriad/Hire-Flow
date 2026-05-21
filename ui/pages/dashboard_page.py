@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSplitter,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -33,9 +31,6 @@ class DashboardPage(QWidget):
         self.activity_table = QTableWidget()
         self.followup_table = QTableWidget()
         self.reply_table = QTableWidget()
-        self.cards_layout = QGridLayout()
-        self.cards_host = QWidget()
-        self.top_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._build_ui()
         self.context.bus.stats_updated.connect(self.refresh_data)
         self.context.bus.logs_updated.connect(self.refresh_data)
@@ -44,10 +39,10 @@ class DashboardPage(QWidget):
         self.refresh_data()
 
     def _build_ui(self) -> None:
+        self.setMinimumWidth(1320)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
-        self.setMinimumWidth(1320)
 
         hero_card = QFrame()
         hero_card.setObjectName("Card")
@@ -83,20 +78,19 @@ class DashboardPage(QWidget):
         hero_layout.addLayout(hero_actions)
         layout.addWidget(hero_card)
 
-        self.cards_layout.setContentsMargins(0, 0, 0, 0)
-        self.cards_layout.setHorizontalSpacing(14)
-        self.cards_layout.setVerticalSpacing(14)
-        self.cards_host.setLayout(self.cards_layout)
-        for key, title, value, subtitle, detail in self.card_specs:
+        cards_grid = QGridLayout()
+        cards_grid.setContentsMargins(0, 0, 0, 0)
+        cards_grid.setHorizontalSpacing(14)
+        cards_grid.setVerticalSpacing(14)
+        for index, (key, title, value, subtitle, detail) in enumerate(self.card_specs):
             card = StatCard(title, value, subtitle, detail=detail)
-            card.setMinimumWidth(340)
+            card.setMinimumWidth(380)
             self.cards[key] = card
-        self._relayout_cards()
-        layout.addWidget(self.cards_host)
+            cards_grid.addWidget(card, index // 3, index % 3)
+        layout.addLayout(cards_grid)
 
         activity_card = QFrame()
         activity_card.setObjectName("Card")
-        activity_card.setMinimumWidth(700)
         activity_layout = QVBoxLayout(activity_card)
         activity_layout.setContentsMargins(18, 18, 18, 18)
         activity_layout.setSpacing(10)
@@ -112,10 +106,10 @@ class DashboardPage(QWidget):
             column_widths=[140, 110, 220, 170, 120],
         )
         activity_layout.addWidget(self.activity_table)
+        layout.addWidget(activity_card)
 
         followup_card = QFrame()
         followup_card.setObjectName("Card")
-        followup_card.setMinimumWidth(820)
         followup_layout = QVBoxLayout(followup_card)
         followup_layout.setContentsMargins(18, 18, 18, 18)
         followup_layout.setSpacing(10)
@@ -131,18 +125,10 @@ class DashboardPage(QWidget):
             column_widths=[140, 92, 180, 160, 240],
         )
         followup_layout.addWidget(self.followup_table)
-
-        self.top_splitter.addWidget(activity_card)
-        self.top_splitter.addWidget(followup_card)
-        self.top_splitter.setChildrenCollapsible(False)
-        self.top_splitter.setStretchFactor(0, 1)
-        self.top_splitter.setStretchFactor(1, 1)
-        self.top_splitter.setSizes([700, 620])
-        layout.addWidget(self.top_splitter)
+        layout.addWidget(followup_card)
 
         reply_card = QFrame()
         reply_card.setObjectName("Card")
-        reply_card.setMinimumWidth(1180)
         reply_layout = QVBoxLayout(reply_card)
         reply_layout.setContentsMargins(18, 18, 18, 18)
         reply_layout.setSpacing(10)
@@ -160,25 +146,6 @@ class DashboardPage(QWidget):
         reply_layout.addWidget(self.reply_table)
         layout.addWidget(reply_card)
         layout.addStretch(1)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        self._relayout_cards()
-
-    def _relayout_cards(self) -> None:
-        available_width = max(self.width(), self.minimumWidth())
-        columns = 3 if available_width >= 1620 else 2 if available_width >= 1120 else 1
-        while self.cards_layout.count():
-            item = self.cards_layout.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-        for index, (key, *_rest) in enumerate(self.card_specs):
-            card = self.cards[key]
-            self.cards_layout.addWidget(card, index // columns, index % columns)
-            card.show()
-        rows = (len(self.card_specs) + columns - 1) // columns
-        self.cards_host.setMinimumWidth(columns * 340 + max(columns - 1, 0) * 14)
-        self.cards_host.setMinimumHeight(rows * 132 + max(rows - 1, 0) * 14)
 
     def refresh_data(self) -> None:
         stats = self.context.database.get_stats()
