@@ -1,18 +1,50 @@
 # -*- mode: python ; coding: utf-8 -*-
-import platform
 
+import platform
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_submodules
 
-datas = [('templates', 'templates'), ('assets', 'assets'), ('samples', 'samples')]
-hiddenimports = []
-datas += collect_data_files('certifi')
-hiddenimports += collect_submodules('keyring')
+# -------------------------------------------------
+# PLATFORM DETECTION
+# -------------------------------------------------
 
-app_icon = 'assets/hireflow_icon.ico' if platform.system() == 'Windows' else 'assets/hireflow_icon.icns'
+IS_WINDOWS = platform.system() == "Windows"
+IS_MAC = platform.system() == "Darwin"
+
+# -------------------------------------------------
+# ICON HANDLING
+# -------------------------------------------------
+
+if IS_WINDOWS:
+    app_icon = "assets/hireflow_icon.ico"
+else:
+    app_icon = "assets/hireflow_icon.icns"
+
+# -------------------------------------------------
+# DATA FILES
+# -------------------------------------------------
+
+datas = [
+    ("templates", "templates"),
+    ("assets", "assets"),
+    ("samples", "samples"),
+]
+
+datas += collect_data_files("certifi")
+
+# -------------------------------------------------
+# HIDDEN IMPORTS
+# -------------------------------------------------
+
+hiddenimports = []
+hiddenimports += collect_submodules("keyring")
+
+# -------------------------------------------------
+# ANALYSIS
+# -------------------------------------------------
 
 a = Analysis(
-    ['main.py'],
+    ["main.py"],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -24,14 +56,23 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# -------------------------------------------------
+# PYZ
+# -------------------------------------------------
+
 pyz = PYZ(a.pure)
+
+# -------------------------------------------------
+# WINDOWS / MAIN EXECUTABLE
+# -------------------------------------------------
 
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name='HireFlow',
+    name="HireFlow",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -44,6 +85,11 @@ exe = EXE(
     entitlements_file=None,
     icon=app_icon,
 )
+
+# -------------------------------------------------
+# COLLECT
+# -------------------------------------------------
+
 coll = COLLECT(
     exe,
     a.binaries,
@@ -51,11 +97,17 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='HireFlow',
+    name="HireFlow",
 )
-app = BUNDLE(
-    coll,
-    name='HireFlow.app',
-    icon=app_icon,
-    bundle_identifier='com.hireflow.app',
-)
+
+# -------------------------------------------------
+# macOS APP BUNDLE
+# -------------------------------------------------
+
+if IS_MAC:
+    app = BUNDLE(
+        coll,
+        name="HireFlow.app",
+        icon=app_icon,
+        bundle_identifier="com.hireflow.app",
+    )
